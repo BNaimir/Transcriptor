@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transcriptor Inteligente</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        :root { --morado-oscuro: #4a148c; --morado-medio: #7b1fa2; --morado-claro: #f3e5f5; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--morado-claro); display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        #contenedor { width: 100%; max-width: 700px; background: white; padding: 30px; border-radius: 25px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); border: 2px solid white; }
+        h1 { color: var(--morado-oscuro); text-align: center; margin-bottom: 20px; }
+        #resultado { 
+            width: 100%; height: 350px; border: 2px solid #e1bee7; border-radius: 15px; 
+            padding: 20px; margin: 20px 0; font-size: 1.1rem; overflow-y: auto;
+            background: #fff; line-height: 1.6; white-space: pre-wrap; box-sizing: border-box;
+        }
+        .controles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        button { 
+            padding: 15px; font-size: 1rem; border: none; border-radius: 12px; 
+            cursor: pointer; color: white; font-weight: bold; transition: all 0.2s ease;
+        }
+        .btn-start { background: var(--morado-medio); grid-column: span 2; }
+        .btn-stop { background: #b39ddb; color: var(--morado-oscuro); }
+        .btn-pdf { background: var(--morado-oscuro); }
+        button:hover { opacity: 0.9; transform: translateY(-2px); }
+        .status { text-align: center; color: var(--morado-medio); margin-top: 15px; font-weight: 500; }
+    </style>
+</head>
+<body>
+
+<div id="contenedor">
+    <h1>🎙️ Transcriptor Inteligente</h1>
+    <div id="resultado" contenteditable="true" placeholder="El texto aparecerá aquí..."></div>
+    
+    <div class="controles">
+        <button id="btnDictar" class="btn-start">🚀 EMPEZAR TRANSCRIPCIÓN</button>
+        <button id="btnDetener" class="btn-stop">⏸ PAUSAR</button>
+        <button id="btnDescargar" class="btn-pdf">📄 EXPORTAR PDF</button>
+    </div>
+    
+    <p id="estado" class="status">Listo para escuchar.</p>
+</div>
+
+<script>
+    const { jsPDF } = window.jspdf;
+    const resultado = document.getElementById('resultado');
+    const estado = document.getElementById('estado');
+    let transcripcionCompleta = "";
+    let timeoutParrafo;
+
+    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    
+    if (Recognition) {
+        const reconocimiento = new Recognition();
+        reconocimiento.lang = 'es-ES';
+        reconocimiento.interimResults = true; // Permite ver el texto mientras hablas
+        reconocimiento.continuous = true;     // No se detiene al hacer pausas cortas
+
+        reconocimiento.onresult = (event) => {
+            let interimTranscript = '';
+            
+            // Limpiamos el temporizador de párrafo cada vez que detecta voz
+            clearTimeout(timeoutParrafo);
+
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                if (event.results[i].isFinal) {
+                    transcripcionCompleta += event.results[i][0].transcript + " ";
+                    
+                    // Si hay un silencio de 2.5 segundos tras una frase final, añade párrafo
+                    timeoutParrafo = setTimeout(() => {
+                        transcripcionCompleta += "\n\n";
+                        resultado.innerText = transcripcionCompleta;
+                    }, 2500);
+
+                } else {
+                    interimTranscript += event.results[i][0].transcript;
+                }
+            }
+            // Mostramos el texto finalizado + lo que está procesando en el momento
+            resultado.innerText = transcripcionCompleta + interimTranscript;
+            resultado.scrollTop = resultado.scrollHeight; // Auto-scroll hacia abajo
+        };
+
+        reconocimiento.onstart = () => { estado.innerText = "🟣 Escuchando... haz pausas largas para crear párrafos."; };
+        reconocimiento.onend = () => { estado.innerText = "Grabación detenida."; };
+
+        document.getElementById('btnDictar').addEventListener('click', () => reconocimiento.start());
+        document.getElementById('btnDetener').addEventListener('click', () => reconocimiento.stop());
+
+        document.getElementById('btnDescargar').addEventListener('click', () => {
+            const doc = new jsPDF();
+            const margin = 15;
+            const splitText = doc.splitTextToSize(resultado.innerText, 180);
+            doc.setFont("helvetica", "bold");
+            doc.text("Transcripción Profesional", margin, 15);
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(11);
+            doc.text(splitText, margin, 25);
+            doc.save("transcripcion_tablet.pdf");
+        });
+
+    } else {
+        alert("Tu tablet no soporta esta función en este navegador. Usa Chrome.");
+    }
+</script>
+
+</body>
+</html>
